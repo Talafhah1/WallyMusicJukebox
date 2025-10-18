@@ -187,9 +187,11 @@ build-clang/bin/Release/InteractivePlayer.exe
 
 ## Testing
 
-### TestLoader - Quick DLL Test
+The project includes two test programs to verify functionality:
 
-Test the DLL with the included TestLoader executable:
+### TestLoader - DLL Dynamic Loading Test
+
+Tests the DLL by loading it dynamically at runtime (using `LoadLibrary` and `GetProcAddress`):
 
 ```cmd
 cd build\bin\Release
@@ -197,15 +199,18 @@ TestLoader.exe
 ```
 
 The test loader will:
-1. Initialize the Wwise sound engine with Brawlhalla's default settings
-2. Load Init.bnk and VOX_Announcer.bnk automatically
-3. Set up game objects (sound emitter, music emitter, listener)
-4. Load and play the menu theme music (MUS_Menu_Theme_Play)
-5. Wait for user input before cleaning up
+1. Dynamically load WallyMusicJukebox.dll
+2. Initialize the Wwise sound engine with Brawlhalla's default settings
+3. Load Init.bnk and VOX_Announcer.bnk automatically
+4. Set up game objects (sound emitter, music emitter, listener)
+5. Load and play the menu theme music (MUS_Menu_Theme_Play)
+6. Wait for user input before cleaning up
 
-### InteractivePlayer - Full Event Testing
+**Note:** Requires WallyMusicJukebox.dll to be in the same directory.
 
-The InteractivePlayer is a monolithic statically-linked executable that allows you to test any Wwise event interactively:
+### InteractivePlayer - Interactive Event Testing (Statically Linked)
+
+The InteractivePlayer is a **statically-linked monolithic executable** that allows you to test any Wwise event interactively with on-demand bank loading. Unlike TestLoader, it compiles the entire Wwise implementation directly into the executable - no DLL required!
 
 ```cmd
 cd build\bin\Release
@@ -219,38 +224,66 @@ InteractivePlayer.exe "C:\Custom\Path\To\Audio"
 
 Features:
 - **Statically linked** - No external DLL required, fully self-contained
-- **Loads all common banks** - Menu, Training, UI, Gameplay, Characters, Impacts
-- **Interactive event playback** - Enter any event name to play it
+- **On-demand bank loading** - Loads banks only when needed (solves memory issues)
+- **Automatic bank management** - Unloads previous bank when loading new one
+- **Bank::Event format** - Specify which bank to load with each event
+- **Interactive event playback** - Test any Wwise event from any bank
 - **Continuous audio rendering** - Audio engine runs in background thread
 - **Emitter switching** - Choose between sound and music emitters
-- **Playback control** - Stop events with fade-out
+- **Playback control** - Stop events with fade-out and bank unloading
 
 Commands:
-- Enter event name to play (e.g., `MUS_Menu_Theme_Play`, `UI_Button_Click`)
-- `stop` - Stop current playback with 500ms fade
+- **Bank::Event format** - `BankName::EventName` (e.g., `MUS_Menu::MUS_Menu_Theme_Play`)
+- `stop` - Stop current playback and unload current bank
 - `music` - Switch to music emitter for next events
 - `sound` - Switch to sound emitter for next events
 - `quit` or `exit` - Exit the program
 
 Example session:
 ```
-[Music Emitter] Enter event name: MUS_Menu_Theme_Play
+[Music Emitter] Bank::Event: MUS_Menu::MUS_Menu_Theme_Play
+Loading bank: MUS_Menu.bnk...
+Bank loaded successfully!
 Posting event: MUS_Menu_Theme_Play on Music emitter...
 Event posted successfully! (Playing ID: 12345)
 
-[Music Emitter] Enter event name: stop
-Stopping playback (ID: 12345)...
-
-[Music Emitter] Enter event name: sound
-Switched to Sound emitter.
-
-[Sound Emitter] Enter event name: UI_Button_Click
-Posting event: UI_Button_Click on Sound emitter...
+[Music Emitter] Bank::Event: SPC_Hattori::SPC_Hattori_VO_Reveal
+Stopping current playback...
+Unloading bank: MUS_Menu.bnk...
+Loading bank: SPC_Hattori.bnk...
+Bank loaded successfully!
+Posting event: SPC_Hattori_VO_Reveal on Music emitter...
 Event posted successfully! (Playing ID: 12346)
 
-[Sound Emitter] Enter event name: quit
+[Music Emitter] Bank::Event: stop
+Stopping playback (ID: 12346)...
+Unloading bank: SPC_Hattori.bnk...
+
+[Music Emitter] Bank::Event: sound
+Switched to Sound emitter.
+
+[Sound Emitter] Bank::Event: UI::UI_Button_Click
+Loading bank: UI.bnk...
+Bank loaded successfully!
+Posting event: UI_Button_Click on Sound emitter...
+Event posted successfully! (Playing ID: 12347)
+
+[Sound Emitter] Bank::Event: quit
 Exiting...
 ```
+
+**How it works:**
+- **Statically linked** - Contains the entire Wwise implementation, no DLL needed
+- Only loads one bank at a time (plus Init.bnk which is always loaded)
+- Automatically unloads the previous bank when loading a new one
+- Prevents memory issues by not loading all 212+ banks simultaneously
+- Skips Init.bnk if requested (already loaded during initialization)
+
+**Why static linking?**
+- Self-contained executable - perfect for testing and debugging
+- No DLL dependencies to manage
+- Easier to distribute as a standalone tool
+- Direct function calls without GetProcAddress overhead
 
 **Note:** Brawlhalla must be installed at the default Steam location for the test to work:
 `C:\Program Files (x86)\Steam\steamapps\common\Brawlhalla\audio\pc`
@@ -259,24 +292,35 @@ Exiting...
 
 ```
 WallyMusicJukebox/
-├── include/               # Public header files
-│   ├── exports.hpp        # DLL export macros
-│   └── WwiseManager.hpp   # Wwise manager interface
-├── src/                   # Source files
-│   ├── main.cpp           # DLL entry point
-│   └── WwiseManager.cpp   # Wwise manager implementation
-├── build/                 # MSVC build output (generated)
-├── build-gcc/             # GCC build output (generated)
-├── build-clang/           # Clang build output (generated)
-├── .env                   # Build configuration (git-ignored)
-├── .env.example           # Example configuration template
-├── .clangd                # clangd language server config
-├── CMakeLists.txt         # CMake build configuration
-├── build_config.json      # Additional build settings
-├── build.bat/ps1/sh       # MSVC build scripts
-├── build-gcc.bat/ps1/sh   # GCC build scripts
-├── build-clang.bat/ps1/sh # Clang build scripts
-└── README.md              # This file
+├── include/                      # Public header files
+│   ├── exports.hpp               # DLL export macros
+│   └── WwiseManager.hpp          # Wwise manager C API interface
+├── src/                          # Library source files
+│   ├── main.cpp                  # DLL entry point
+│   └── WwiseManager.cpp          # Wwise manager implementation
+├── test/                         # Test programs
+│   ├── test_loader.cpp           # DLL dynamic loading test
+│   └── interactive_player.cpp    # Interactive event player (statically linked)
+├── build/                        # MSVC build output (generated)
+│   ├── bin/Release/              # Release binaries
+│   │   ├── WallyMusicJukebox.dll
+│   │   ├── TestLoader.exe
+│   │   └── InteractivePlayer.exe
+│   └── bin/Debug/                # Debug binaries
+├── build-gcc/                    # GCC build output (generated)
+├── build-clang/                  # Clang build output (generated)
+├── .env                          # Build configuration (git-ignored)
+├── .env.example                  # Example configuration template
+├── .clangd                       # clangd language server config
+├── .vscode/                      # VS Code settings
+│   └── settings.json             # Editor configuration
+├── CMakeLists.txt                # CMake build configuration
+├── compile_flags.txt             # clangd compilation flags
+├── build_config.json             # Additional build settings
+├── build.bat/ps1/sh              # MSVC build scripts
+├── build-gcc.bat/ps1/sh          # GCC build scripts
+├── build-clang.bat/ps1/sh        # Clang build scripts
+└── README.md                     # This file
 ```
 
 ## Usage
@@ -290,104 +334,157 @@ The easiest way to use this DLL with Brawlhalla is to use `InitWithBrawlhallaDef
 ```cpp
 #include <Windows.h>
 #include <iostream>
+#include <cstdint>
 
-// Load the DLL
-HMODULE hDLL = LoadLibraryA("WallyMusicJukebox.dll");
+int main() {
+    // Load the DLL
+    HMODULE hDLL = LoadLibraryA("WallyMusicJukebox.dll");
+    if (hDLL == nullptr) {
+        std::cerr << "Failed to load DLL!\n";
+        return 1;
+    }
 
-// Get function pointers
-typedef uint32_t (*InitWithDefaultsFunc)(const char*);
-typedef void (*DisposeFunc)();
-typedef uint32_t (*LoadBankFunc)(const char*);
-typedef uint32_t (*RegisterGameObjFunc)(uint32_t, const char*);
-typedef uint32_t (*SetDefaultListenerFunc)(uint32_t);
-typedef uint32_t (*SetPositionFunc)(uint32_t, float, float, float, float, float, float);
-typedef uint32_t (*SetRtpcValueFunc)(const char*, float, uint32_t);
-typedef uint32_t (*PostEventFunc)(const char*, uint32_t);
-typedef uint32_t (*TickFunc)();
+    // Define function pointer types
+    using InitWithDefaultsFunc = uint32_t (*)(const char*);
+    using DisposeFunc = void (*)();
+    using LoadBankFunc = uint32_t (*)(const char*);
+    using RegisterGameObjFunc = uint32_t (*)(uint32_t, const char*);
+    using SetDefaultListenerFunc = uint32_t (*)(uint32_t);
+    using SetPositionFunc = uint32_t (*)(uint32_t, float, float, float, float, float, float);
+    using SetRtpcValueFunc = uint32_t (*)(const char*, float, uint32_t);
+    using PostEventFunc = uint32_t (*)(const char*, uint32_t);
+    using TickSoundEngineExtensionFunc = uint32_t (*)();
 
-auto InitWithDefaults = (InitWithDefaultsFunc)GetProcAddress(hDLL, "InitWithBrawlhallaDefaults");
-auto Dispose = (DisposeFunc)GetProcAddress(hDLL, "Dispose");
-auto LoadBank = (LoadBankFunc)GetProcAddress(hDLL, "LoadBank");
-auto RegisterGameObj = (RegisterGameObjFunc)GetProcAddress(hDLL, "RegisterGameObj");
-auto SetDefaultListener = (SetDefaultListenerFunc)GetProcAddress(hDLL, "SetDefaultListener");
-auto SetPosition = (SetPositionFunc)GetProcAddress(hDLL, "SetPosition");
-auto SetRtpcValue = (SetRtpcValueFunc)GetProcAddress(hDLL, "SetRtpcValue");
-auto PostEvent = (PostEventFunc)GetProcAddress(hDLL, "PostEvent");
-auto Tick = (TickFunc)GetProcAddress(hDLL, "TickSoundEngineExtension");
+    // Get function pointers
+    auto InitWithDefaults = (InitWithDefaultsFunc)GetProcAddress(hDLL, "InitWithBrawlhallaDefaults");
+    auto Dispose = (DisposeFunc)GetProcAddress(hDLL, "Dispose");
+    auto LoadBank = (LoadBankFunc)GetProcAddress(hDLL, "LoadBank");
+    auto RegisterGameObj = (RegisterGameObjFunc)GetProcAddress(hDLL, "RegisterGameObj");
+    auto SetDefaultListener = (SetDefaultListenerFunc)GetProcAddress(hDLL, "SetDefaultListener");
+    auto SetPosition = (SetPositionFunc)GetProcAddress(hDLL, "SetPosition");
+    auto SetRtpcValue = (SetRtpcValueFunc)GetProcAddress(hDLL, "SetRtpcValue");
+    auto PostEvent = (PostEventFunc)GetProcAddress(hDLL, "PostEvent");
+    auto TickSoundEngineExtension = (TickSoundEngineExtensionFunc)GetProcAddress(hDLL, "TickSoundEngineExtension");
 
-// Initialize with Brawlhalla defaults (nullptr = use default path)
-// This automatically loads Init.bnk and VOX_Announcer.bnk
-InitWithDefaults(nullptr);
+    // Check if all functions loaded successfully
+    if (!InitWithDefaults || !Dispose || !LoadBank || !RegisterGameObj || 
+        !SetDefaultListener || !SetPosition || !SetRtpcValue || !PostEvent || !TickSoundEngineExtension) {
+        std::cerr << "Failed to load required functions!\n";
+        FreeLibrary(hDLL);
+        return 1;
+    }
 
-// Register game objects
-const uint32_t SOUND_EMITTER = 1;
-const uint32_t MUSIC_EMITTER = 2;
-const uint32_t LISTENER = 0;
+    // Initialize with Brawlhalla defaults (nullptr = use default path)
+    // This automatically loads Init.bnk and VOX_Announcer.bnk
+    if (InitWithDefaults(nullptr) != 1) {
+        std::cerr << "Failed to initialize sound engine!\n";
+        FreeLibrary(hDLL);
+        return 1;
+    }
 
-RegisterGameObj(SOUND_EMITTER, "Volume_Sound");
-RegisterGameObj(MUSIC_EMITTER, "Volume_Music");
-RegisterGameObj(LISTENER, "Listener");
-SetDefaultListener(LISTENER);
+    // Register game objects
+    const uint32_t SOUND_EMITTER = 1;
+    const uint32_t MUSIC_EMITTER = 2;
+    const uint32_t LISTENER = 0;
 
-// Set positions
-SetPosition(LISTENER, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f);
-SetPosition(SOUND_EMITTER, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f);
-SetPosition(MUSIC_EMITTER, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f);
+    RegisterGameObj(SOUND_EMITTER, "Volume_Sound");
+    RegisterGameObj(MUSIC_EMITTER, "Volume_Music");
+    RegisterGameObj(LISTENER, "Listener");
+    SetDefaultListener(LISTENER);
 
-// Set volume RTPCs
-SetRtpcValue("Volume_Sound", 6.0f, SOUND_EMITTER);
-SetRtpcValue("Volume_Music", 6.0f, MUSIC_EMITTER);
+    // Set positions (position + orientation vector)
+    SetPosition(LISTENER, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f);
+    SetPosition(SOUND_EMITTER, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f);
+    SetPosition(MUSIC_EMITTER, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f);
 
-// Load and play menu music
-LoadBank("MUS_Menu.bnk");
-PostEvent("MUS_Menu_Theme_Play", MUSIC_EMITTER);
+    // Set volume RTPCs (Real-Time Parameter Controls)
+    SetRtpcValue("Volume_Sound", 6.0f, SOUND_EMITTER);
+    SetRtpcValue("Volume_Music", 6.0f, MUSIC_EMITTER);
 
-// Game loop
-while (running) {
-    Tick();  // Call every frame to process audio
-    // Your game logic...
+    // Load and play menu music
+    if (LoadBank("MUS_Menu.bnk") == 1) {
+        uint32_t playingID = PostEvent("MUS_Menu_Theme_Play", MUSIC_EMITTER);
+        if (playingID != 0) {
+            std::cout << "Music playing! (ID: " << playingID << ")\n";
+        }
+    }
+
+    // Game loop - must call TickSoundEngineExtension() every frame to process audio
+    bool running = true;
+    while (running) {
+        TickSoundEngineExtension();  // Process audio engine
+        
+        // Your game logic here...
+        // Check for exit condition
+    }
+
+    // Cleanup
+    Dispose();
+    FreeLibrary(hDLL);
+    return 0;
 }
-
-// Cleanup
-Dispose();
-FreeLibrary(hDLL);
 ```
 
 ### Manual Initialization
 
-For more control, use the standard `Init()` function:
+For more control, use the standard `Init()` function instead of `InitWithBrawlhallaDefaults()`:
 
 ```cpp
+// Get Init function pointer
+using InitFunc = uint32_t (*)(const char*);
 auto Init = (InitFunc)GetProcAddress(hDLL, "Init");
 
 // Initialize with custom path
-Init("C:/Custom/Path/To/Audio");
+if (Init("C:/Custom/Path/To/Audio") != 1) {
+    std::cerr << "Failed to initialize!\n";
+    return 1;
+}
 
-// Manually load banks
-LoadBank("Init.bnk");
-LoadBank("English(US)/VOX_Announcer.bnk");
+// Manually load required banks
+if (LoadBank("Init.bnk") != 1) {
+    std::cerr << "Failed to load Init.bnk!\n";
+    return 1;
+}
 
-// Continue with game setup...
+// Load localized voice bank
+if (LoadBank("English(US)/VOX_Announcer.bnk") != 1) {
+    std::cerr << "Failed to load VOX_Announcer.bnk!\n";
+    return 1;
+}
+
+// Continue with game object setup...
+RegisterGameObj(MUSIC_EMITTER, "Volume_Music");
+// ... rest of setup
 ```
+
+**Note:** `InitWithBrawlhallaDefaults()` automatically:
+- Sets the base path to Brawlhalla's default location (if nullptr is passed)
+- Loads `Init.bnk` (required by Wwise)
+- Loads `English(US)/VOX_Announcer.bnk` (voice lines)
+
+With manual `Init()`, you must load these banks yourself.
 
 ### Complete API Reference
 
-| Function | Description | Returns |
-|----------|-------------|---------|
-| `Init(basePath)` | Initialize sound engine with base path | `1` on success, `0` on failure |
-| `Dispose()` | Shutdown and cleanup sound engine | void |
-| `SetBasePath(path)` | Change the base path for sound banks | `1` on success, `0` on failure |
-| `LoadBank(bank)` | Load a sound bank by name | `1` on success, `0` on failure |
-| `UnloadBank(bank)` | Unload a sound bank by name | `1` on success, `0` on failure |
-| `RegisterGameObj(id, name)` | Register a game object for audio | `1` on success, `0` on failure |
-| `UnregisterGameObj(id)` | Unregister a game object | `1` on success, `0` on failure |
-| `SetDefaultListener(id)` | Set the default audio listener | `1` on success, `0` on failure |
-| `StopPlaying(id, fade)` | Stop a playing sound with fade (ms) | void |
-| `PostEvent(event, gameObj)` | Post an audio event | Playing ID (0 on failure) |
-| `SetRtpcValue(param, value, obj)` | Set real-time parameter | `1` on success, `0` on failure |
-| `SetPosition(obj, x, y, z, ...)` | Set 3D position for game object | `1` on success, `0` on failure |
-| `SetListenerPosition(x, y, z, ...)` | Set 3D listener position | `1` on success, `0` on failure |
-| `TickSoundEngineExtension()` | Update sound engine (call per frame) | `1` on success, `0` on failure |
+| Function | Signature | Returns |
+|----------|-----------|---------|
+| `Init` | `uint32_t Init(const char* basePath)` | `1` on success, `0` on failure |
+| `InitWithBrawlhallaDefaults` | `uint32_t InitWithBrawlhallaDefaults(const char* basePath)` | `1` on success, `0` on failure |
+| `Dispose` | `void Dispose()` | void |
+| `SetBasePath` | `uint32_t SetBasePath(const char* path)` | `1` on success, `0` on failure |
+| `LoadBank` | `uint32_t LoadBank(const char* bank)` | `1` on success, `0` on failure |
+| `UnloadBank` | `uint32_t UnloadBank(const char* bank)` | `1` on success, `0` on failure |
+| `RegisterGameObj` | `uint32_t RegisterGameObj(uint32_t gameObj, const char* name)` | `1` on success, `0` on failure |
+| `UnregisterGameObj` | `uint32_t UnregisterGameObj(uint32_t gameObj)` | `1` on success, `0` on failure |
+| `SetDefaultListeners` | `uint32_t SetDefaultListeners(const uint32_t* gameObjs, uint32_t length)` | `1` on success, `0` on failure |
+| `SetDefaultListener` | `uint32_t SetDefaultListener(uint32_t gameObj)` | `1` on success, `0` on failure |
+| `StopPlaying` | `void StopPlaying(uint32_t playingID, int32_t fadeDuration)` | void |
+| `PostEvent` | `uint32_t PostEvent(const char* event, uint32_t gameObj)` | Playing ID (`0` on failure) |
+| `SetRtpcValue` | `uint32_t SetRtpcValue(const char* gameParam, float value, uint32_t gameObj)` | `1` on success, `0` on failure |
+| `SetRtpcValueByPlayingID` | `uint32_t SetRtpcValueByPlayingID(const char* gameParam, float value, uint32_t playingID)` | `1` on success, `0` on failure |
+| `SetPosition` | `uint32_t SetPosition(uint32_t gameObj, float posX, float posY, float posZ, float orientX, float orientY, float orientZ)` | `1` on success, `0` on failure |
+| `SetListenerPosition` | `uint32_t SetListenerPosition(float posX, float posY, float posZ, float frontX, float frontY, float frontZ, float topX, float topY, float topZ)` | `1` on success, `0` on failure |
+| `TickSoundEngineExtension` | `uint32_t TickSoundEngineExtension()` | `1` on success, `0` on failure |
 
 ### Example: 3D Positional Audio
 
@@ -401,31 +498,37 @@ RegisterGameObj(listenerID, "MainListener");
 SetDefaultListener(listenerID);
 
 // Set listener position and orientation
+// SetListenerPosition(posX, posY, posZ, frontX, frontY, frontZ, topX, topY, topZ)
 SetListenerPosition(
-    0.0f, 0.0f, 0.0f,           // Position
-    0.0f, 0.0f, 1.0f,           // Front orientation
-    0.0f, 1.0f, 0.0f            // Top orientation
+    0.0f, 0.0f, 0.0f,      // Position (x, y, z)
+    0.0f, 0.0f, 1.0f,      // Front vector (looking forward along Z)
+    0.0f, 1.0f, 0.0f       // Top vector (Y is up)
 );
 
-// Set sound source position
+// Set sound source position and orientation
+// SetPosition(gameObj, posX, posY, posZ, orientX, orientY, orientZ)
 SetPosition(playerID, 10.0f, 0.0f, 5.0f, 0.0f, 0.0f, 1.0f);
 
 // Play positional sound
-PostEvent("Play_Footsteps", playerID);
+uint32_t playingID = PostEvent("Play_Footsteps", playerID);
 ```
 
 ### Example: Dynamic Music with RTPC
 
 ```cpp
+// Setup music emitter
+uint32_t musicEmitter = 2;
+RegisterGameObj(musicEmitter, "Volume_Music");
+
 // Start music
-uint32_t musicID = PostEvent("Play_MainTheme", 0);
+uint32_t musicID = PostEvent("Play_MainTheme", musicEmitter);
 
 // Change music intensity based on gameplay
 float intensity = 0.75f;  // 0.0 to 1.0
-SetRtpcValue("MusicIntensity", intensity, 0);
+SetRtpcValue("MusicIntensity", intensity, musicEmitter);
 
-// Or change parameter for specific playing sound
-SetRtpcValueByPlayingID("Volume", 0.5f, musicID);
+// Or change parameter for specific playing sound by its ID
+SetRtpcValueByPlayingID("Volume_Music", 0.5f, musicID);
 ```
 
 ## Troubleshooting
