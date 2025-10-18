@@ -1,0 +1,53 @@
+CompileFlags:
+  # Specify C++ compiler explicitly
+  Compiler: clang++
+  # Add compiler flags
+  Add:
+    - -std=c++20
+    - -Wall
+    - -Wextra
+    - -DWALLYMUSICJUKEBOX_EXPORTS
+    - -D_WIN32
+    - -D_WINDOWS
+    # Include directories (relative to workspace root)
+    - -I${workspaceFolder}/include
+    - -IC:/Program Files (x86)/Audiokinetic/Wwise 2017.2.10.6745/SDK/include
+  # Remove problematic flags
+  Remove:
+    - -W4
+    - /W4
+    - -permissive-
+    - /permissive-
+    - -std=c++20
+
+Diagnostics:
+  # Suppress common warnings
+  UnusedIncludes: Strict
+  MissingIncludes: Strict
+  ClangTidy:
+    Add:
+      - modernize-*
+      - performance-*
+      - readability-*
+    Remove:
+      - modernize-use-trailing-return-type
+      - readability-identifier-length
+
+# Index settings for better code navigation
+Index:
+  Background: Build
+  StandardLibrary: Yes
+
+# Hover behavior
+Hover:
+  ShowAKA: Yes
+
+# InlayHints for better code understanding
+InlayHints:
+  Enabled: Yes
+  ParameterNames: Yes
+  DeducedTypes: Yes
+
+# Completion settings
+Completion:
+  AllScopes: Yes
