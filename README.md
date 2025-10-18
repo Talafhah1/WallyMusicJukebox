@@ -162,29 +162,34 @@ The project is configured to use **vc150** libraries exclusively, which are loca
 
 ## Output
 
-The compiled DLL and test executable will be located at:
+The compiled DLL and executables will be located at:
 
 **MSVC:**
 ```
 build/bin/Release/WallyMusicJukebox.dll
 build/bin/Release/TestLoader.exe
+build/bin/Release/InteractivePlayer.exe
 ```
 
 **MinGW/GCC:**
 ```
 build-gcc/bin/Release/libWallyMusicJukebox.dll
 build-gcc/bin/Release/TestLoader.exe
+build-gcc/bin/Release/InteractivePlayer.exe
 ```
 
 **Clang:**
 ```
 build-clang/bin/Release/libWallyMusicJukebox.dll
 build-clang/bin/Release/TestLoader.exe
+build-clang/bin/Release/InteractivePlayer.exe
 ```
 
 ## Testing
 
-After building, you can test the DLL with the included TestLoader executable:
+### TestLoader - Quick DLL Test
+
+Test the DLL with the included TestLoader executable:
 
 ```cmd
 cd build\bin\Release
@@ -197,6 +202,55 @@ The test loader will:
 3. Set up game objects (sound emitter, music emitter, listener)
 4. Load and play the menu theme music (MUS_Menu_Theme_Play)
 5. Wait for user input before cleaning up
+
+### InteractivePlayer - Full Event Testing
+
+The InteractivePlayer is a monolithic statically-linked executable that allows you to test any Wwise event interactively:
+
+```cmd
+cd build\bin\Release
+
+# Use default Brawlhalla path
+InteractivePlayer.exe
+
+# Or specify custom audio path
+InteractivePlayer.exe "C:\Custom\Path\To\Audio"
+```
+
+Features:
+- **Statically linked** - No external DLL required, fully self-contained
+- **Loads all common banks** - Menu, Training, UI, Gameplay, Characters, Impacts
+- **Interactive event playback** - Enter any event name to play it
+- **Continuous audio rendering** - Audio engine runs in background thread
+- **Emitter switching** - Choose between sound and music emitters
+- **Playback control** - Stop events with fade-out
+
+Commands:
+- Enter event name to play (e.g., `MUS_Menu_Theme_Play`, `UI_Button_Click`)
+- `stop` - Stop current playback with 500ms fade
+- `music` - Switch to music emitter for next events
+- `sound` - Switch to sound emitter for next events
+- `quit` or `exit` - Exit the program
+
+Example session:
+```
+[Music Emitter] Enter event name: MUS_Menu_Theme_Play
+Posting event: MUS_Menu_Theme_Play on Music emitter...
+Event posted successfully! (Playing ID: 12345)
+
+[Music Emitter] Enter event name: stop
+Stopping playback (ID: 12345)...
+
+[Music Emitter] Enter event name: sound
+Switched to Sound emitter.
+
+[Sound Emitter] Enter event name: UI_Button_Click
+Posting event: UI_Button_Click on Sound emitter...
+Event posted successfully! (Playing ID: 12346)
+
+[Sound Emitter] Enter event name: quit
+Exiting...
+```
 
 **Note:** Brawlhalla must be installed at the default Steam location for the test to work:
 `C:\Program Files (x86)\Steam\steamapps\common\Brawlhalla\audio\pc`

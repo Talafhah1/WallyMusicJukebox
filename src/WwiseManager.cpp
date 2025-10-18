@@ -309,6 +309,8 @@ WALLYMUSICJUKEBOX_API uint32_t LoadBank(const char* bank) {
     
     if (result == AK_Success) {
         std::cout << "Bank loaded: " << bank << "\n";
+    } else {
+        std::cerr << "Failed to load bank: " << bank << " (Error code: " << result << ")\n";
     }
     
     return (result == AK_Success) ? AK_Success : AK_Fail;

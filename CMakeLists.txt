@@ -173,3 +173,61 @@ add_custom_command(TARGET TestLoader POST_BUILD
         ${CMAKE_BINARY_DIR}/bin/$<CONFIG>/TestLoader.exe
     COMMENT "Copying test executable to output directory"
 )
+
+# Interactive Player - Statically linked monolithic executable
+add_executable(InteractivePlayer 
+    test/interactive_player.cpp
+    src/WwiseManager.cpp
+    ${WWISE_SAMPLES_COMMON}
+    ${WWISE_SAMPLES_WIN32}
+)
+
+# Include directories for interactive player
+target_include_directories(InteractivePlayer
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${WWISE_INCLUDE_DIR}
+        ${WWISE_SDK_ROOT}/samples/SoundEngine/Win32
+        ${WWISE_SDK_ROOT}/samples/SoundEngine/Common
+)
+
+# Preprocessor definitions for interactive player
+target_compile_definitions(InteractivePlayer
+    PRIVATE
+        WALLYMUSICJUKEBOX_EXPORTS
+        $<$<PLATFORM_ID:Windows>:_UNICODE;UNICODE>
+        $<$<CONFIG:Debug>:_DEBUG>
+        $<$<CONFIG:Release>:NDEBUG>
+)
+
+# Link directories for interactive player
+target_link_directories(InteractivePlayer
+    PRIVATE
+        $<$<CONFIG:Debug>:${WWISE_LIB_DIR_DEBUG}>
+        $<$<CONFIG:Release>:${WWISE_LIB_DIR}>
+)
+
+# Link libraries for interactive player
+target_link_libraries(InteractivePlayer
+    PRIVATE
+        ${WWISE_LIBS}
+        # Windows libraries
+        ws2_32
+        dinput8
+        dxguid
+        dsound
+        winmm
+)
+
+# Set output properties for interactive player
+set_target_properties(InteractivePlayer PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+# Copy interactive player to output directory
+add_custom_command(TARGET InteractivePlayer POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:InteractivePlayer>
+        ${CMAKE_BINARY_DIR}/bin/$<CONFIG>/InteractivePlayer.exe
+    COMMENT "Copying interactive player to output directory"
+)
