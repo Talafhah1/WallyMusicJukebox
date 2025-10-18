@@ -53,8 +53,19 @@ set(HEADERS
     include/exports.hpp
 )
 
+# Wwise SDK sample implementation files
+set(WWISE_SAMPLES_COMMON
+    "${WWISE_SDK_ROOT}/samples/SoundEngine/Common/AkFileLocationBase.cpp"
+    "${WWISE_SDK_ROOT}/samples/SoundEngine/Common/AkFilePackage.cpp"
+    "${WWISE_SDK_ROOT}/samples/SoundEngine/Common/AkFilePackageLUT.cpp"
+)
+
+set(WWISE_SAMPLES_WIN32
+    "${WWISE_SDK_ROOT}/samples/SoundEngine/Win32/AkDefaultIOHookBlocking.cpp"
+)
+
 # Create DLL
-add_library(${PROJECT_NAME} SHARED ${SOURCES} ${HEADERS})
+add_library(${PROJECT_NAME} SHARED ${SOURCES} ${HEADERS} ${WWISE_SAMPLES_COMMON} ${WWISE_SAMPLES_WIN32})
 
 # Include directories
 target_include_directories(${PROJECT_NAME}
@@ -62,12 +73,15 @@ target_include_directories(${PROJECT_NAME}
         ${CMAKE_CURRENT_SOURCE_DIR}/include
     PRIVATE
         ${WWISE_INCLUDE_DIR}
+        ${WWISE_SDK_ROOT}/samples/SoundEngine/Win32
+        ${WWISE_SDK_ROOT}/samples/SoundEngine/Common
 )
 
 # Preprocessor definitions
 target_compile_definitions(${PROJECT_NAME}
     PRIVATE
         WALLYMUSICJUKEBOX_EXPORTS
+        $<$<PLATFORM_ID:Windows>:_UNICODE;UNICODE>
         $<$<CONFIG:Debug>:_DEBUG>
         $<$<CONFIG:Release>:NDEBUG>
 )
@@ -102,6 +116,7 @@ set(WWISE_LIBS
     AkStreamMgr
     AkMusicEngine
     AkSpatialAudio
+    AkVorbisDecoder
 )
 
 # Link libraries

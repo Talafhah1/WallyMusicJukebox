@@ -12,6 +12,8 @@ CompileFlags:
     # Include directories (relative to workspace root)
     - -I${workspaceFolder}/include
     - -IC:/Program Files (x86)/Audiokinetic/Wwise 2017.2.10.6745/SDK/include
+    - -IC:/Program Files (x86)/Audiokinetic/Wwise 2017.2.10.6745/SDK/samples/SoundEngine/Win32
+    - -IC:/Program Files (x86)/Audiokinetic/Wwise 2017.2.10.6745/SDK/samples/SoundEngine/Common
   # Remove problematic flags
   Remove:
     - -W4

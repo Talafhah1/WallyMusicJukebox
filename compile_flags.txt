@@ -4,3 +4,5 @@
 -D_WINDOWS
 -Ic:\Users\omart\OneDrive\Documents\Brawlhalla Scripts\WallyMusicJukebox\include
 -IC:/Program Files (x86)/Audiokinetic/Wwise 2017.2.10.6745/SDK/include
+-IC:/Program Files (x86)/Audiokinetic/Wwise 2017.2.10.6745/SDK/samples/SoundEngine/Win32
+-IC:/Program Files (x86)/Audiokinetic/Wwise 2017.2.10.6745/SDK/samples/SoundEngine/Common
